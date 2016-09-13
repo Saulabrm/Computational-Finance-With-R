@@ -1,0 +1,298 @@
+---
+title: "Return Calculations"
+author: "Saul Garcia"
+date: "September 12, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load the monthly Starbucks return data
+
+In this first lab, you will analyze the monthly stock returns of Starbucks (ticker: SBUX).
+
+Let us get started by downloading the monthly return data from <http://assets.datacamp.com/course/compfin/sbuxPrices.csv>, and by using the read.csv() function. Type ?read.table in the console to consult the help file.
+
+In the read.csv() function, you should indicate that the data in the CSV file has a header (header argument) and that strings should not be interpreted as factors (stringsAsFactors argument).
+
+```{r, echo=TRUE}
+# Assign the URL to the CSV file
+data_url <- "http://assets.datacamp.com/course/compfin/sbuxPrices.csv"
+
+# Load the data frame using read.csv
+sbux_df <-read.csv(data_url,header=TRUE,stringsAsFactors=FALSE)
+```
+
+## Get a feel for the data
+
+Before you analyze return data, it is a good idea to have (at least) a quick look at the data. R has a number of functions that help you do that:
+
+- The str() function compactly displays the structure of an R object. It is arguably one of the most useful R functions.
+- The head() and tail() functions shows you the first and the last part of an R object, respectively.
+- The class() function shows you the class of an R object.
+
+```{r, echo=TRUE}
+# Check the structure of 'sbux_df'
+str(sbux_df)
+
+# Check the first and last part of 'sbux_df'
+head(sbux_df)
+tail(sbux_df)
+
+# Get the class of the Date column of 'sbux_df'
+class(sbux_df$Date)
+```
+
+## Extract the price data
+
+You can use square brackets to extract data from the `sbux_df` data frame like this `sbux_df[rows, columns]`. To specify which rows or columns to extract, you have several options:
+
+`sbux_df[1:5, "Adj.Close"]`   
+`sbux_df[1:5, 2]`  
+`sbux_df$Adj.Close[1:5]`.  
+
+These expressions will all extract the first five closing prices. If you do not provide anything for the rows (or columns), all rows (or columns) will be selected (e.g. sbux_df[, "Adj.Close"]). Check this yourself by typing the different options in the console!
+
+Note that in the above operations, the dimension information was lost. To preserve the dimension information, add the drop = FALSE argument.
+
+```{r, echo=TRUE}
+#Assign to `closing_prices` all the adjusted closing prices while preserving dimension information
+closing_prices <- sbux_df[,"Adj.Close",drop=FALSE]
+
+dim(closing_prices)
+```
+
+## Find indices associated with the dates 3/1/1994 and 3/1/1995
+It will often be useful to select stock data between certain dates. Advanced users are advised to look at the `xts package. However, base R also provides sufficient functionality to do this.
+
+The which() function returns the indices for which a condition is TRUE. For example: which(sbux_df$Date == "3/1/1994") returns the position of the date 3/1/1994, which indicates in this case the row number in the sbux_df data frame.
+```{r, echo=TRUE}
+# Find indices associated with the dates 3/1/1994 and 3/1/1995
+index_1 <- which(sbux_df$Date == "3/1/1994")
+index_2 <- which(sbux_df$Date == "3/1/1995")
+
+# Extract prices between 3/1/1994 and 3/1/1995
+some_prices <- sbux_df$Adj.Close[index_1 : index_2]
+
+some_prices
+dim(closing_prices)
+```
+
+## Subset directly on dates
+
+The way you selected the data from a specific trading day in the previous exercise was not very convenient, right?
+
+When you create a data frame that has the dates of the stock price as row names, you can select the price on a specific day much more easily. The sample code on the right creates a new data frame `sbux_prices_df that has the trading days as row names. You can select the price on 3/1/1994 now simply with `sbux_prices_df["3/1/1994", 1].
+
+```{r, echo=TRUE}
+# Create a new data frame that contains the price data with the dates as the row names
+sbux_prices_df <- sbux_df[, "Adj.Close", drop = FALSE]
+rownames(sbux_prices_df) <- sbux_df$Date
+head(sbux_prices_df)
+                       
+# With Dates as rownames, you can subset directly on the dates.
+# Find indices associated with the dates 3/1/1994 and 3/1/1995.
+price_1 <- sbux_prices_df["3/1/1994",1]
+price_2 <- sbux_prices_df["3/1/1995",1]
+
+price_1 ; price_2
+```
+
+## Plot the price data
+
+R has powerful graphical capabilities. On the right, the Starbucks closing prices are plotted as a function of time. This plot was generated with `plot(sbux_df$Adj.Close)`, the basic plotting function.
+
+However, we should be able to generate a nicer plot, right? For one thing, a line plot makes much more sense for price time series data.
+
+```{r, echo=TRUE}
+# Now add all relevant arguments to the plot function below to get a nicer plot
+plot(sbux_df$Adj.Close)
+
+plot(sbux_df$Adj.Close, type ="l",
+        col="blue",
+        lwd = 2,
+        ylab = "Adjusted close",
+        main = "Monthly closing price of SBUX")
+
+# Add legend
+legend(x = 'topleft', legend = 'SBUX', lty = 1, lwd = 2, col='blue')
+```
+
+## Calculate simple returns
+
+If you denote by $P_{t}$ the stock price at the end of month $t_{t}$, the simple return is given by:
+
+$$R_{t} = \frac{P_{t}−P_{t-1}}{Pt−1},
+$$
+
+the percentage price difference.
+
+Your task in this exercise is to compute the simple returns for every time point *n*. The fact that R is vectorized makes that relatively easy. In case you would like to calculate the price **difference** over time, you can use
+
+`sbux_prices_df[2:n,1] - sbux_prices_df[1:(n - 1),1]
+
+Think about why this indeed calculates the price difference for all time periods. The first vector contains all prices, except the price on the first day. The second vector contains all prices except the price on the last day. Given the fact that R takes the element-wise difference of these vectors, you get $P_{t}−P_{t-1}$ for every $t$.
+
+```{r, echo=TRUE}
+# The sbux_df data frame is already loaded in your work space
+sbux_prices_df <- sbux_df[, "Adj.Close", drop = FALSE]
+
+# Denote n the number of time periods
+n <- nrow(sbux_prices_df)
+sbux_ret = (sbux_prices_df[2:n,1] - sbux_prices_df[1:(n - 1),1]) / 
+sbux_prices_df[1:(n - 1),1]
+
+# Notice that sbux_ret is not a data frame object
+class(sbux_ret)
+```
+
+## Add dates to simple return vector
+The vector `sbux_ret` now contains the simple returns of Starbucks. It would be convenient to have the dates as names for the elements of that vector. Remember that the trading dates were in the first column of the `sbux_df` data frame. To set the names of a vector, you can use names(vector) <- some_names.
+
+Remember that we are dealing with closing prices. The first return in `sbux_df` is thus realized on the second day, or `sbux_prices_df[2,1].
+
+```{r, echo=TRUE}
+# Add dates as names to the vector and print the first elements of sbux_ret to the console to check
+names(sbux_ret)<- sbux_df[-1,"Date"]
+head(sbux_ret)
+```
+
+## Compute continuously compounded 1-month returns
+As you might remember from class, the relation between single-period and multi-period returns is multiplicative for single returns. That is not very convenient. The yearly return is for example the geometric average of the monthly returns.
+
+Therefore, in practice you will often use continuously compounded returns. These returns have an additive relationship between single and multi-period returns and are defined as
+
+$$r_{t}=ln(1+R_{t}),$$
+
+with $R_{t}$ the simple return and $r_{t}$ the continuously compounded return at moment tt.
+
+Continuously compounded returns can be computed easily in R by realizing that
+
+$$r_{t}=ln(\frac{P_{t}}{P_{t-1}})$$
+
+$$ln(\frac{P_{t}}{P_{t-1}})=ln(P_{t})−ln(P_{t}−1).$$
+
+In R, the log price can be easily computed through **log(price)**. Notice how the log() function in R actually computes the natural logarithm.
+
+```{r, echo=TRUE}
+# Compute continuously compounded 1-month returns
+sbux_ccret <-log((sbux_prices_df[2:n, 1]) / sbux_prices_df[1:(n - 1), 1])
+
+# Assign names to the continuously compounded 1-month returns
+names(sbux_ccret) <- sbux_df[-1,"Date"]
+
+# Show sbux_ccret
+head(sbux_ccret)
+```
+
+## Compare simple and continuously compounded returns
+
+You would like to compare the simple and the continuously compounded returns. In the next exercise, you will do that by generating two graphs. In this exercise, you will just have a quick look at the data. It would be nice to have the simple and continuously compounded return next to each other in a matrix, with `n` rows and two columns. You can use the `cbind() function to paste the two vectors that contain both types of returns next to each other in a matrix.
+
+```{r, echo=TRUE}
+# Compare the simple and cc returns
+returns = cbind(sbux_ret, sbux_ccret)
+head(returns)
+```
+
+## Graphically compare the simple and continuously compounded returns
+
+In this exercise, you will create a plot that contains both the simple and continuously compounded returns. This makes it easy to compare both types of returns.
+
+Have a look at the sample code on the right. First of all, we have to plot the simple returns as a function of time. The argument `type = l` specifies a line plot, `col = blue` specifies that the simple returns line is blue, `lwd = 2` specifies the line thickness, `ylab = "Return" specifies that "Return" is the label of the y-axis and `main specifies the plot's main title.
+
+```{r, echo=TRUE}
+# Plot the returns on the same graph
+plot(sbux_ret, type = "l", col = "blue", lwd = 2, ylab = "Return", main = "Monthly Returns on SBUX")
+
+# Add horizontal line at zero
+abline(h = 0)
+
+# Add a legend
+legend(x = "bottomright", legend = c("Simple", "CC"), lty = 1, lwd = 2, col = c("blue", "red"))
+
+# Add the continuously compounded returns
+lines(sbux_ccret, col = "red", lwd = 2)
+```
+
+## Calculate growth of $1 invested in SBUX
+Would it have been a good idea to invest in the SBUX stock over the period in our data set? In case you invested $1 in SBUX on 3/31/1993 (the first day in `sbux_df`), how much would that dollar be worth on 3/3/2008 (the last day in sbux_df)? What was the evolution of the value of that dollar over time?
+
+R can help you to quickly come up with an answer to these questions. Remember that when you use simple returns, the total return over a period can be obtained by taking the cumulative product of the gross returns. R has a handy cumprod() function that calculates that cumulative product.
+
+```{r}
+# The simple returns (sbux_ret) and the continuously compounded returns (sbux_ccret) have been preloaded in your workspace
+
+# Compute gross returns
+sbux_gret <- 1 + sbux_ret
+
+# Compute future values
+sbux_fv <- cumprod(sbux_gret)
+
+# Plot the evolution of the $1 invested in SBUX as a function of time
+plot(sbux_fv, type = "l", col = "blue", lwd = 2, ylab = "Dollars", main = "FV of $1 invested in SBUX")
+```
+
+## Compute one simple Starbucks return
+Your workspace contains the vector `sbux with the adjusted closing price data for Starbucks stock over the period December 2004 through December 2005. Type `sbux in the console to have a look at the data.
+
+Use the data in `sbux`. What is the simple monthly return between the end of December 2004 and the end of January 2005?
+
+```{r}
+##12/1/2004 12/1/2005
+sbux = sbux_df[142:154,2]
+simpleReturn = (sbux[2] - sbux[1])/sbux[1]*100
+simpleReturn
+```
+
+## Compute one continuously compounded Starbucks return
+What is the continuously compounded monthly return between December 2004 and January 2005?
+
+Your workspace still contains the vector `sbux` with the adjusted closing price data for Starbucks stock over the period December 2004 through December 2005.
+
+```{r}
+#Natural logarithm of the simple return
+log(simpleReturn + 1)
+```
+
+## Monthly compounding
+
+Assume that all twelve months have the same return as the simple monthly return between the end of December 2004 and the end of January 2005. What would be the annual return with monthly compounding in that case?
+
+Your workspace still contains the vector `sbux` with the adjusted closing price data for Starbucks stock over the period December 2004 through December 2005.
+
+Use formula $P(1 + \frac{i}{n})^{nt}$
+
+```{r}
+  1-(1 + simpleReturn)^12
+```
+
+## Simple annual Starbucks return
+
+Use the data in `sbux` and compute the actual simple annual return between December 2004 and December 2005.
+
+Your workspace still contains the vector `sbux` with the adjusted closing price data for Starbucks stock over the period December 2004 through December 2005.
+
+```{r}
+#Simple Return period December 2004 through December 2005
+(sbux[13] - sbux[1])/sbux[1]*100
+```
+
+## Annual continuously compounded return
+Use the data `sbux` and compute the actual annual continuously compounded return between December 2004 and December 2005.
+
+Your workspace still contains the vector `sbux` with the adjusted closing price data for Starbucks stock over the period December 2004 through December 2005.
+
+```{r}
+#Continuously compounded Return period December 2004 through December 2005
+log((sbux[13] - sbux[1])/sbux[1] + 1)
+```
+
+Reference: [Data Camp](https://campus.datacamp.com/courses/computational-finance-and-financial-econometrics-with-r/)
+<!-- ```{r} -->
+<!-- n = length(sbux) -->
+<!-- SimpleMonthlyReturn = (sbux[-1] - sbux[1:(n-1)])/sbux[1:(n-1)] -->
+<!-- cumprod(SimpleMonthlyReturn+1) -->
+<!-- ``` -->
